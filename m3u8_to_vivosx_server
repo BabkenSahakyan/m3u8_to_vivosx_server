@@ -1,0 +1,179 @@
+#!/bin/bash
+
+## FUNCTIONS
+
+show_help () {
+  echo 'usage'
+  echo
+  echo 'note that file extentions are optional; m3u8 and mp4 will be set if missing.'
+  echo
+  echo 'to download/convert and upload'
+  echo './m3u8_to_server -t { api token } \'
+  echo '                 -s { path to m3u8 file } \'
+  echo '                 -f { path to local file to save into and then upload from }'
+  echo
+  echo 'only to download/convert'
+  echo './m3u8_to_server -t { api token } \'
+  echo '                 -s { path to m3u8 file } \'
+  echo '                 --download-only'
+  echo
+  echo 'only to upload'
+  echo './m3u8_to_server -t { api token } \'
+  echo '                 -f { path to local file to upload } \'
+  echo '                 --upload-only'
+}
+
+show_validation_error () {
+  echo "error: $1"
+  echo
+
+  show_help
+  
+  exit
+}
+
+debug_message () {
+  echo
+  
+  if [[ $1 != '' ]]; then
+    echo "$1"
+  fi
+
+  echo '################################################################################'
+  echo
+}
+
+with_postfix () {
+  str="$1"
+  pfx=".$2"
+
+  if [[ "$str" == *$pfx ]]; then
+    echo "$str"
+  else
+    echo "$str$pfx"
+  fi
+
+  return 0
+}
+
+download () {
+  ffmpeg -i "$1" -bsf:a aac_adtstoasc -vcodec copy -c copy -crf 0 "$2"
+
+  return 0
+}
+
+get_upload_url () {
+  f_size=$(ls -l $2 | awk '{ print $5}')
+
+  echo $( curl -X GET "https://vivo.sx/api/v1/upload/$f_size" -H "Content-Type: application/json" -H "x-auth: $1" | jq -r '.upload_url' )
+
+  return 0
+}
+
+upload () {
+  echo $( curl -X POST "$2" -H "Content-Type: multipart/form-data" -H 'Cache-Control: no-cache' -F action=push -F session="\'$1\'" -F file=@"$3" )
+
+  return 0
+}
+
+## END FUNCTIONS
+
+
+## MAIN
+
+## VARIABLES
+
+source_url=""
+f_name=""
+api_token=""
+download_only=false
+upload_only=false
+
+## END VARIABLES
+
+## READING ARGUMENTS
+while [ "$#" -gt 0 ]; do
+  case $1 in
+
+    -f )
+      shift
+      f_name=$( with_postfix "videos/$1" "mp4" )
+      ;;
+    -s )
+      shift
+      source_url=$( with_postfix $1 "m3u8" )
+      ;;
+    -t )
+      shift
+      api_token="$1"
+      ;;
+    --download-only )
+      download_only=true
+      ;;
+    --upload-only )
+      upload_only=true
+      ;;
+    -h | --help )
+      show_help
+      exit
+      ;;
+    * )
+      show_help
+      exit
+      ;;
+
+  esac
+  shift
+done
+
+
+echo
+echo $source_url
+echo $f_name
+echo $api_token
+echo $download_only
+echo $upload_only
+
+## END READING ARGUMENTS
+
+## VALIDATE ARGUMENTS
+
+if [[ $f_name == "" ]]; then
+  show_validation_error "file name is mandatory"
+
+elif [[ $download_only == true && $upload_only == true ]]; then
+  show_validation_error "please specify either --download-only or --upload-only argument"
+
+elif [[ $upload_only == true && $source_url != "" ]]; then
+  show_validation_error "please specify only source file to upload"
+
+elif [[ $upload_only == false && $source_url == "" ]]; then
+  show_validation_error "please specify source url to download from"
+
+elif [[ $download_only == false && $api_token == "" ]]; then
+  show_validation_error "please specify api token to upload"
+
+fi
+
+## END VALIDATE ARGUMENTS
+
+## APPLYING MAIN LOGIC
+if [[ $upload_only == false ]]; then
+  debug_message "downloading from $source_url to $f_name"
+
+  download $source_url $f_name
+fi
+
+if [[ $download_only == false ]]; then
+  debug_message
+
+  destination_url=$( get_upload_url $api_token $f_name )
+
+  debug_message "uploading to $destination_url"
+
+  upload $api_token $destination_url $f_name
+fi
+
+## END APPLYING MAIN LOGIC
+
+## END MAIN
