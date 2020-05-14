@@ -52,28 +52,30 @@ with_postfix () {
   else
     echo "$str$pfx"
   fi
-
-  return 0
 }
 
 download () {
-  ffmpeg -i "$1" -bsf:a aac_adtstoasc -vcodec copy -c copy -crf 0 "$2"
+  source_uri="$1"
+  f_name="$2"
 
-  return 0
+  ffmpeg -i "$source_uri" -bsf:a aac_adtstoasc -vcodec copy -c copy -crf 0 "$f_name"
 }
 
 get_upload_url () {
-  f_size=$(ls -l $2 | awk '{ print $5}')
+  api_token="$1"
+  f_name="$2"
 
-  echo $( curl -X GET "https://vivo.sx/api/v1/upload/$f_size" -H "Content-Type: application/json" -H "x-auth: $1" | jq -r '.upload_url' )
+  f_size=$(ls -l "$f_name" | awk '{ print $5}')
 
-  return 0
+  echo $( curl -X GET "https://vivo.sx/api/v1/upload/$f_size" -H "Content-Type: application/json" -H "x-auth: $api_token" | jq -r '.upload_url' )
 }
 
 upload () {
-  echo $( curl -X POST "$2" -H "Content-Type: multipart/form-data" -H 'Cache-Control: no-cache' -F action=push -F session="\'$1\'" -F file=@"$3" )
+  api_token="$1"
+  upload_url="$2"
+  f_name="$3"
 
-  return 0
+  echo $( curl -X POST $upload_url -H 'Content-Type: multipart/form-data' -H 'Cache-Control: no-cache' -F action=push -F session="$api_token" -F file=@$f_name )
 }
 
 ## END FUNCTIONS
@@ -83,7 +85,7 @@ upload () {
 
 ## VARIABLES
 
-source_url=""
+source_uri=""
 f_name=""
 api_token=""
 download_only=false
@@ -101,7 +103,7 @@ while [ "$#" -gt 0 ]; do
       ;;
     -s )
       shift
-      source_url=$( with_postfix $1 "m3u8" )
+      source_uri=$( with_postfix $1 "m3u8" )
       ;;
     -t )
       shift
@@ -126,14 +128,6 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-
-echo
-echo $source_url
-echo $f_name
-echo $api_token
-echo $download_only
-echo $upload_only
-
 ## END READING ARGUMENTS
 
 ## VALIDATE ARGUMENTS
@@ -144,11 +138,11 @@ if [[ $f_name == "" ]]; then
 elif [[ $download_only == true && $upload_only == true ]]; then
   show_validation_error "please specify either --download-only or --upload-only argument"
 
-elif [[ $upload_only == true && $source_url != "" ]]; then
-  show_validation_error "please specify only source file to upload"
+elif [[ $upload_only == true && $source_uri != "" ]]; then
+  show_validation_error "please specify only source uri to upload"
 
-elif [[ $upload_only == false && $source_url == "" ]]; then
-  show_validation_error "please specify source url to download from"
+elif [[ $upload_only == false && $source_uri == "" ]]; then
+  show_validation_error "please specify source uri to download from"
 
 elif [[ $download_only == false && $api_token == "" ]]; then
   show_validation_error "please specify api token to upload"
@@ -159,21 +153,22 @@ fi
 
 ## APPLYING MAIN LOGIC
 if [[ $upload_only == false ]]; then
-  debug_message "downloading from $source_url to $f_name"
+  debug_message "downloading from $source_uri to $f_name"
 
-  download $source_url $f_name
+  download $source_uri $f_name
 fi
 
 if [[ $download_only == false ]]; then
   debug_message
 
-  destination_url=$( get_upload_url $api_token $f_name )
+  upload_url=$( get_upload_url $api_token $f_name )
 
-  debug_message "uploading to $destination_url"
+  debug_message "uploading $f_name to $upload_url"
 
-  upload $api_token $destination_url $f_name
+  upload $api_token $upload_url $f_name
 fi
 
 ## END APPLYING MAIN LOGIC
 
 ## END MAIN
+
