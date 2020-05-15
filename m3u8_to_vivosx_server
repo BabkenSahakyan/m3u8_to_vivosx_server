@@ -65,7 +65,7 @@ get_upload_url () {
   api_token="$1"
   f_name="$2"
 
-  f_size=$(ls -l "$f_name" | awk '{ print $5}')
+  f_size=$( ls -l "$f_name" | awk '{ print $5}' )
 
   echo $( curl -X GET "https://vivo.sx/api/v1/upload/$f_size" -H "Content-Type: application/json" -H "x-auth: $api_token" | jq -r '.upload_url' )
 }
@@ -75,7 +75,7 @@ upload () {
   upload_url="$2"
   f_name="$3"
 
-  echo $( curl -X POST $upload_url -H 'Content-Type: multipart/form-data' -H 'Cache-Control: no-cache' -F action=push -F session="$api_token" -F file=@$f_name )
+  echo $( curl -X POST "$upload_url" -H 'Content-Type: multipart/form-data' -H 'Cache-Control: no-cache' -F action=push -F session="$api_token" -F "file=@$f_name" )
 }
 
 ## END FUNCTIONS
@@ -95,15 +95,15 @@ upload_only=false
 
 ## READING ARGUMENTS
 while [ "$#" -gt 0 ]; do
-  case $1 in
+  case "$1" in
 
     -f )
       shift
-      f_name=$( with_postfix "videos/$1" "mp4" )
+      f_name=$( with_postfix "$1" "mp4" )
       ;;
     -s )
       shift
-      source_uri=$( with_postfix $1 "m3u8" )
+      source_uri=$( with_postfix "$1" "m3u8" )
       ;;
     -t )
       shift
@@ -155,17 +155,17 @@ fi
 if [[ $upload_only == false ]]; then
   debug_message "downloading from $source_uri to $f_name"
 
-  download $source_uri $f_name
+  download "$source_uri" "$f_name"
 fi
 
 if [[ $download_only == false ]]; then
   debug_message
 
-  upload_url=$( get_upload_url $api_token $f_name )
+  upload_url=$( get_upload_url "$api_token" "$f_name" )
 
   debug_message "uploading $f_name to $upload_url"
 
-  upload $api_token $upload_url $f_name
+  upload "$api_token" "$upload_url" "$f_name"
 fi
 
 ## END APPLYING MAIN LOGIC
