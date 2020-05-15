@@ -35,7 +35,7 @@ show_validation_error () {
 debug_message () {
   echo
   
-  if [[ $1 != '' ]]; then
+  if [[ "$1" != '' ]]; then
     echo "$1"
   fi
 
@@ -65,7 +65,7 @@ get_upload_url () {
   api_token="$1"
   f_name="$2"
 
-  f_size=$( ls -l "$f_name" | awk '{ print $5}' )
+  f_size=$( ls -l "$f_name" | awk '{ print $5 }' )
 
   echo $( curl -X GET "https://vivo.sx/api/v1/upload/$f_size" -H "Content-Type: application/json" -H "x-auth: $api_token" | jq -r '.upload_url' )
 }
@@ -75,7 +75,7 @@ upload () {
   upload_url="$2"
   f_name="$3"
 
-  echo $( curl -X POST "$upload_url" -H 'Content-Type: multipart/form-data' -H 'Cache-Control: no-cache' -F action=push -F session="$api_token" -F "file=@$f_name" )
+  echo $( curl -X POST "$upload_url" -H 'Content-Type: multipart/form-data' -H 'Cache-Control: no-cache' -F action=push -F session="$api_token" -F \"file=@\""$f_name"\"\" )
 }
 
 ## END FUNCTIONS
@@ -99,11 +99,11 @@ while [ "$#" -gt 0 ]; do
 
     -f )
       shift
-      f_name=$( with_postfix "$1" "mp4" )
+      f_name="$( with_postfix "$1" "mp4" )"
       ;;
     -s )
       shift
-      source_uri=$( with_postfix "$1" "m3u8" )
+      source_uri="$( with_postfix "$1" "m3u8" )"
       ;;
     -t )
       shift
@@ -171,4 +171,3 @@ fi
 ## END APPLYING MAIN LOGIC
 
 ## END MAIN
-
